@@ -242,6 +242,7 @@ def _pex_binary_impl(ctx):
       "--output-file", deploy_pex.path,
       "--cache-dir", ".pex/build",
       manifest_file.path,
+      "--no-wheel",
   ]
 
   # form the inputs to pex builder
