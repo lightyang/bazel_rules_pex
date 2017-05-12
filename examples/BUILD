@@ -10,7 +10,7 @@ pex_library(
     name = "libbar",
     srcs = ["bar/bar.py"],
     strip_prefixes = [
-        "examples/bar",
+        "./bar",
     ],
 )
 

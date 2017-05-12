@@ -118,9 +118,22 @@ def _collect_transitive(ctx):
   )
 
 
+def _expand_prefixes(ctx, prefixes):
+  current_dir = ctx.build_file_path[:ctx.build_file_path.rfind("/")]
+  ret = []
+  for prefix in prefixes:
+    if prefix.startswith(".."):
+      fail("relative path outside the build file directory is not supported")
+    if prefix.startswith("."):
+      ret.append(current_dir + prefix[1:])
+    else:
+      ret.append(prefix)
+  return ret
+
+
 def _pex_library_impl(ctx):
   transitive_files = depset(ctx.files.srcs)
-  transitive_strip_prefixes = depset(ctx.attr.strip_prefixes)
+  transitive_strip_prefixes = depset(_expand_prefixes(ctx, ctx.attr.strip_prefixes))
   for dep in ctx.attr.deps:
     transitive_files += dep.default_runfiles.files
     transitive_strip_prefixes += dep.strip_prefixes
@@ -180,7 +193,7 @@ def _gen_manifest(py, runfiles, strip_prefixes = []):
 
 def _pex_binary_impl(ctx):
   transitive_files = depset(ctx.files.srcs)
-  transitive_strip_prefixes = depset(ctx.attr.strip_prefixes)
+  transitive_strip_prefixes = depset(_expand_prefixes(ctx, ctx.attr.strip_prefixes))
 
   if ctx.attr.entrypoint and ctx.file.main:
     fail("Please specify either entrypoint or main, not both.")
