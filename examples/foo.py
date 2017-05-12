@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """One-line summary"""
 
+from bar import Bar
 
 def main():
     """Main"""

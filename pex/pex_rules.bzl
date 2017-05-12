@@ -120,19 +120,22 @@ def _collect_transitive(ctx):
 
 def _pex_library_impl(ctx):
   transitive_files = depset(ctx.files.srcs)
+  transitive_strip_prefixes = depset(ctx.attr.strip_prefixes)
   for dep in ctx.attr.deps:
     transitive_files += dep.default_runfiles.files
+    transitive_strip_prefixes += dep.strip_prefixes
   return struct(
       files = depset(),
       py = _collect_transitive(ctx),
       runfiles = ctx.runfiles(
           collect_default = True,
           transitive_files = depset(transitive_files),
-      )
+      ),
+      strip_prefixes = transitive_strip_prefixes,
   )
 
 
-def _gen_manifest(py, runfiles):
+def _gen_manifest(py, runfiles, strip_prefixes = []):
   """Generate a manifest for pex_wrapper.
 
   Returns:
@@ -145,10 +148,22 @@ def _gen_manifest(py, runfiles):
 
   pex_files = []
 
+  # sorts the prefixes by length so the longest prefix gets matched first
+  strip_prefixes = reversed(sorted(strip_prefixes))
+
   for f in runfiles.files:
     dpath = f.short_path
     if dpath.startswith("../"):
       dpath = dpath[3:]
+
+    # strip prefix
+    for prefix in strip_prefixes:
+      if dpath.startswith(prefix):
+        dpath = dpath[len(prefix):]
+        break
+    if dpath.startswith("/"):
+      dpath = dpath[1:]
+
     pex_files.append(
         struct(
             src = f.path,
@@ -165,6 +180,7 @@ def _gen_manifest(py, runfiles):
 
 def _pex_binary_impl(ctx):
   transitive_files = depset(ctx.files.srcs)
+  transitive_strip_prefixes = depset(ctx.attr.strip_prefixes)
 
   if ctx.attr.entrypoint and ctx.file.main:
     fail("Please specify either entrypoint or main, not both.")
@@ -188,6 +204,8 @@ def _pex_binary_impl(ctx):
 
   for dep in ctx.attr.deps:
     transitive_files += dep.default_runfiles.files
+    transitive_strip_prefixes += dep.strip_prefixes
+
   runfiles = ctx.runfiles(
       collect_default = True,
       transitive_files = transitive_files,
@@ -196,7 +214,7 @@ def _pex_binary_impl(ctx):
   manifest_file = ctx.new_file(
       ctx.configuration.bin_dir, deploy_pex, '_manifest')
 
-  manifest = _gen_manifest(py, runfiles)
+  manifest = _gen_manifest(py, runfiles, strip_prefixes=transitive_strip_prefixes)
 
   ctx.file_action(
       output = manifest_file,
@@ -327,6 +345,7 @@ pex_attrs = {
                             allow_files = repo_file_types),
     "data": attr.label_list(allow_files = True,
                             cfg = "data"),
+    "strip_prefixes": attr.string_list(),
 
     # Used by pex_binary and pex_*test, not pex_library:
     "_pexbuilder": attr.label(

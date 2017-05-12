@@ -1,6 +1,17 @@
 pex_binary(
     name = "foo",
     srcs = ["foo.py"],
+    deps = [
+        ":libbar",
+    ]
+)
+
+pex_library(
+    name = "libbar",
+    srcs = ["bar/bar.py"],
+    strip_prefixes = [
+        "examples/bar",
+    ],
 )
 
 pex_library(
