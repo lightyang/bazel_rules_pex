@@ -255,7 +255,6 @@ def _pex_binary_impl(ctx):
       "--output-file", deploy_pex.path,
       "--cache-dir", ".pex/build",
       manifest_file.path,
-      "--no-wheel",
   ]
 
   # form the inputs to pex builder
@@ -383,7 +382,7 @@ pex_bin_attrs = _dmerge(pex_attrs, {
                        single_file = True),
     "entrypoint": attr.string(),
     "interpreter": attr.string(),
-    "pex_use_wheels": attr.bool(default=True),
+    "use_wheels": attr.bool(default=False),
     "pex_verbosity": attr.int(default=0),
     "zip_safe": attr.bool(
         default = True,
