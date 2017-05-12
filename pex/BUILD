@@ -23,6 +23,7 @@ genrule(
     output_to_bindir = True,
     message = "Bootstrapping pex",
     cmd = """
+        set -e
         OUTDIR=$$(cd $(@D) && pwd)
         # Workaround really long shebang lines breaking on linux:
         # Use a /tmp path, but keep the actual venv inside the bazel outdir.
