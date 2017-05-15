@@ -197,11 +197,16 @@ def _pex_binary_impl(ctx):
 
   if ctx.attr.entrypoint and ctx.file.main:
     fail("Please specify either entrypoint or main, not both.")
+
+  main_file = None
+  main_pkg = None
+  script = None
   if ctx.attr.entrypoint:
-    main_file = None
     main_pkg = ctx.attr.entrypoint
   elif ctx.file.main:
     main_file = ctx.file.main
+  elif ctx.attr.script:
+    script = ctx.attr.script
   else:
     main_file = pex_file_types.filter(ctx.files.srcs)[0]
   if main_file:
@@ -249,9 +254,12 @@ def _pex_binary_impl(ctx):
     arguments += ["--repo", repo]
   for egg in py.transitive_eggs:
     arguments += ["--find-links", egg.dirname]
+  if script:
+      arguments += ["--script", script]
+  else:
+      arguments += ["--entry-point", main_pkg]
   arguments += [
       "--pex-root", ".pex",  # May be redundant since we also set PEX_ROOT
-      "--entry-point", main_pkg,
       "--output-file", deploy_pex.path,
       "--cache-dir", ".pex/build",
       manifest_file.path,
@@ -381,6 +389,7 @@ pex_bin_attrs = _dmerge(pex_attrs, {
     "main": attr.label(allow_files = True,
                        single_file = True),
     "entrypoint": attr.string(),
+    "script": attr.string(),
     "interpreter": attr.string(),
     "use_wheels": attr.bool(default=False),
     "pex_verbosity": attr.int(default=0),
