@@ -243,7 +243,7 @@ def _pex_binary_impl(ctx):
 
   # form the arguments to pex builder
   arguments =  [] if ctx.attr.zip_safe else ["--not-zip-safe"]
-  arguments += [] if ctx.attr.pex_use_wheels else ["--no-use-wheel"]
+  arguments += [] if ctx.attr.use_wheels else ["--no-use-wheel"]
   if ctx.attr.no_index:
     arguments += ["--no-index"]
   if ctx.attr.disable_cache:
@@ -272,7 +272,7 @@ def _pex_binary_impl(ctx):
       list(py.transitive_eggs)
   )
 
-  ctx.action(
+  ctx.actions.run(
       mnemonic = "PexPython",
       inputs = _inputs,
       outputs = [deploy_pex],
@@ -391,7 +391,7 @@ pex_bin_attrs = _dmerge(pex_attrs, {
     "entrypoint": attr.string(),
     "script": attr.string(),
     "interpreter": attr.string(),
-    "use_wheels": attr.bool(default=False),
+    "use_wheels": attr.bool(default=True),
     "pex_verbosity": attr.int(default=0),
     "zip_safe": attr.bool(
         default = True,
