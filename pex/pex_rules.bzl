@@ -97,6 +97,15 @@ def _collect_transitive_reqs(ctx):
   return transitive_reqs
 
 
+def _collect_transitive_strip_prefixes(ctx):
+  transitive_strip_prefixes = depset(order="postorder")
+  for dep in ctx.attr.deps:
+    if hasattr(dep.py, "transitive_strip_prefixes"):
+      transitive_strip_prefixes += dep.py.transitive_strip_prefixes
+  transitive_strip_prefixes += _expand_prefixes(ctx, ctx.attr.strip_prefixes)
+  return transitive_strip_prefixes
+
+
 def _collect_repos(ctx):
   repos = {}
   for dep in ctx.attr.deps:
@@ -114,6 +123,7 @@ def _collect_transitive(ctx):
       transitive_sources = _collect_transitive_sources(ctx),
       transitive_eggs = _collect_transitive_eggs(ctx),
       transitive_reqs = _collect_transitive_reqs(ctx),
+      transitive_strip_prefixes = _collect_transitive_strip_prefixes(ctx),
       # uses_shared_libraries = ... # native py_library has this. What is it?
   )
 
@@ -133,10 +143,8 @@ def _expand_prefixes(ctx, prefixes):
 
 def _pex_library_impl(ctx):
   transitive_files = depset(ctx.files.srcs)
-  transitive_strip_prefixes = depset(_expand_prefixes(ctx, ctx.attr.strip_prefixes))
   for dep in ctx.attr.deps:
     transitive_files += dep.default_runfiles.files
-    transitive_strip_prefixes += dep.strip_prefixes
   return struct(
       files = depset(),
       py = _collect_transitive(ctx),
@@ -144,7 +152,6 @@ def _pex_library_impl(ctx):
           collect_default = True,
           transitive_files = depset(transitive_files),
       ),
-      strip_prefixes = transitive_strip_prefixes,
   )
 
 
@@ -193,7 +200,6 @@ def _gen_manifest(py, runfiles, strip_prefixes = []):
 
 def _pex_binary_impl(ctx):
   transitive_files = depset(ctx.files.srcs)
-  transitive_strip_prefixes = depset(_expand_prefixes(ctx, ctx.attr.strip_prefixes))
 
   if ctx.attr.entrypoint and ctx.file.main:
     fail("Please specify either entrypoint or main, not both.")
@@ -222,7 +228,6 @@ def _pex_binary_impl(ctx):
 
   for dep in ctx.attr.deps:
     transitive_files += dep.default_runfiles.files
-    transitive_strip_prefixes += dep.strip_prefixes
 
   runfiles = ctx.runfiles(
       collect_default = True,
@@ -232,7 +237,7 @@ def _pex_binary_impl(ctx):
   manifest_file = ctx.new_file(
       ctx.configuration.bin_dir, deploy_pex, '_manifest')
 
-  manifest = _gen_manifest(py, runfiles, strip_prefixes=transitive_strip_prefixes)
+  manifest = _gen_manifest(py, runfiles, strip_prefixes=py.transitive_strip_prefixes)
 
   ctx.file_action(
       output = manifest_file,
