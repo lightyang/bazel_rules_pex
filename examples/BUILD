@@ -1,3 +1,11 @@
+load(
+    "@//pex:pex_rules.bzl",
+    "pex_binary",
+    "pex_library",
+    "pex_test",
+    "pex_pytest",
+)
+
 pex_binary(
     name = "foo",
     srcs = ["foo.py"],
