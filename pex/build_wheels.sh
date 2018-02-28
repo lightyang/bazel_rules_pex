@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [[ $# != 3 ]]; then
+  echo "Usage: $0 <interpreter> <requirements-file> <output-dir>"
+  exit 1
+fi
+
 py=$1
 req_file=$2
 tmp_dir=$3
