@@ -11,7 +11,12 @@ pex_binary(
     srcs = ["foo.py"],
     deps = [
         ":libbar",
-    ]
+    ],
+    reqs = [
+        "addict==2.1.1",
+        "numpy==1.13.3",
+    ],
+    pip_wheel = True,
 )
 
 pex_library(

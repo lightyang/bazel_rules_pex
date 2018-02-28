@@ -155,7 +155,7 @@ def _pex_library_impl(ctx):
   )
 
 
-def _gen_manifest(py, runfiles, strip_prefixes = []):
+def _gen_manifest(ctx, py, runfiles, strip_prefixes = []):
   """Generate a manifest for pex_wrapper.
 
   Returns:
@@ -191,11 +191,47 @@ def _gen_manifest(py, runfiles, strip_prefixes = []):
         ),
     )
 
-  return struct(
+  requirements = list(py.transitive_reqs)
+
+  if len(requirements) > 0 and ctx.attr.pip_wheel:
+    req_file = ctx.actions.declare_file(ctx.attr.name + "_requirements.txt")
+    ctx.actions.write(
+        output = req_file,
+        content = "\n".join(requirements) + "\n",
+    )
+    wheels_dir = ctx.actions.declare_directory(ctx.attr.name + "_wheels", sibling=req_file)
+    ctx.actions.run(
+        mnemonic = "PexWheel",
+        outputs = [wheels_dir],
+        inputs = [req_file],
+        executable = ctx.executable._build_wheels,
+        arguments = [
+            ctx.attr.interpreter if ctx.attr.interpreter else "python",
+            req_file.path,
+            wheels_dir.path,
+        ],
+        execution_requirements = {
+            "requires-network": "1",
+        },
+        use_default_shell_env = True,
+    )
+  else:
+    wheels_dir = None
+
+  manifest = struct(
       modules = pex_files,
-      requirements = list(py.transitive_reqs),
+      requirements = requirements,
       prebuiltLibraries = [f.path for f in py.transitive_eggs],
   )
+
+  manifest_file = ctx.actions.declare_file(ctx.attr.name + '.pex_manifest',
+                                           sibling=ctx.outputs.executable)
+
+  ctx.actions.write(
+      output = manifest_file,
+      content = manifest.to_json(),
+  )
+  return (manifest_file, wheels_dir)
 
 
 def _pex_binary_impl(ctx):
@@ -220,8 +256,7 @@ def _pex_binary_impl(ctx):
     main_pkg = main_file.short_path.replace('/', '.')[:-3]
     transitive_files += [main_file]
 
-  deploy_pex = ctx.new_file(
-      ctx.configuration.bin_dir, ctx.outputs.executable, '.pex')
+  deploy_pex = ctx.actions.declare_file(ctx.attr.name + '.pex', sibling=ctx.outputs.executable)
 
   py = _collect_transitive(ctx)
   repos = _collect_repos(ctx)
@@ -234,15 +269,8 @@ def _pex_binary_impl(ctx):
       transitive_files = transitive_files,
   )
 
-  manifest_file = ctx.new_file(
-      ctx.configuration.bin_dir, deploy_pex, '_manifest')
-
-  manifest = _gen_manifest(py, runfiles, strip_prefixes=py.transitive_strip_prefixes)
-
-  ctx.file_action(
-      output = manifest_file,
-      content = manifest.to_json(),
-  )
+  (manifest_file, wheels_dir) = _gen_manifest(
+      ctx, py, runfiles, strip_prefixes=py.transitive_strip_prefixes)
 
   pexbuilder = ctx.executable._pexbuilder
 
@@ -263,6 +291,12 @@ def _pex_binary_impl(ctx):
       arguments += ["--script", script]
   else:
       arguments += ["--entry-point", main_pkg]
+  if wheels_dir:
+    arguments += [
+        "--repo", wheels_dir.path,
+        "--no-pypi",
+        "--no-build",
+    ]
   arguments += [
       "--pex-root", ".pex",  # May be redundant since we also set PEX_ROOT
       "--output-file", deploy_pex.path,
@@ -271,15 +305,17 @@ def _pex_binary_impl(ctx):
   ]
 
   # form the inputs to pex builder
-  _inputs = (
+  inputs = (
       [manifest_file] +
       list(runfiles.files) +
       list(py.transitive_eggs)
   )
+  if wheels_dir:
+      inputs.append(wheels_dir)
 
   ctx.actions.run(
       mnemonic = "PexPython",
-      inputs = _inputs,
+      inputs = inputs,
       outputs = [deploy_pex],
       executable = pexbuilder,
       execution_requirements = {
@@ -378,6 +414,13 @@ pex_attrs = {
         executable = True,
         cfg = "host",
     ),
+
+    "pip_wheel": attr.bool(default=False),
+    "_build_wheels": attr.label(
+        default = Label("//pex:build_wheels"),
+        executable = True,
+        cfg = "host",
+    ),
 }
 
 
@@ -465,6 +508,10 @@ Args:
     It is an error to specify both main and entrypoint.
 
   interpreter: Path to the python interpreter the pex should to use in its shebang line.
+
+  pip_wheel: If True, use `pip wheel` to build wheels then pass these wheels to pex.
+
+    If is intended as a work-around to support manylinux wheels.
 """
 
 pex_test = rule(

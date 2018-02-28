@@ -59,3 +59,9 @@ genrule(
     """,
     visibility = ["//visibility:public"],
 )
+
+sh_binary(
+    name = "build_wheels",
+    srcs = ["build_wheels.sh"],
+    visibility = ["//visibility:public"],
+)
